@@ -3,6 +3,7 @@
    This is a code of a Artificial Neural Network (ANN), written from scratch. 
    The input data (training, validation and test datasets) were extracted from 
    the sklearn.datasets.make_moons. 
+   It is recommended only for teaching/learning purposes.
 
 
                                       Costa-Duarte, M. V. - 19/06/2018
