@@ -3,7 +3,6 @@
    This is a code of a Artificial Neural Network (ANN), written from scratch. 
    The input data (training, validation and test datasets) were extracted from 
    the sklearn.datasets.make_moons. 
-   It is recommended only for teaching/learning purposes.
 
 
                                       Costa-Duarte, M. V. - 19/06/2018
@@ -12,6 +11,7 @@ import numpy as np
 import sklearn 
 import sklearn.datasets 
 import h5py
+import matplotlib.pyplot as plt
 
 def sigmoid(x, deriv = False):
     """
@@ -23,30 +23,13 @@ def sigmoid(x, deriv = False):
     else:
         return x * (1.0 - x)
 
-def tanh(x, deriv = False):
-    """
-       tanh(x) activation function
-
-    """
-    if deriv == False:
-        return np.tanh(x)
-    else:
-        return np.tanh(x) * (1. - np.tanh(x))
-
-def softmax(A, deriv = False):
+def softmax(A):
     """
       Softmax activation function
 
-      https://en.wikipedia.org/wiki/Softmax_function
-
     """
-    if deriv == False:
-        exp_A = np.exp(A)
-        return exp_A / exp_A.sum(axis=1, keepdims=True)
-    else:
-        exp_A = np.exp(A)
-        exp_A_norm = exp_A / exp_A.sum(axis=1, keepdims=True)
-        return exp_A_norm * (1. - exp_A_norm)
+    exp_A = np.exp(A)
+    return exp_A / exp_A.sum(axis=1, keepdims=True)
 
 def load_dataset():
     """
@@ -72,12 +55,6 @@ def load_dataset():
     Y_test = hf['Y'].value
     hf.close()
 
-    # Add 1st column of ones to include the bias term
-
-    X_train = np.concatenate((np.atleast_2d(np.ones(X_train.shape[0])).T, X_train), axis=1)
-    X_validation = np.concatenate((np.atleast_2d(np.ones(X_validation.shape[0])).T, X_validation), axis=1)
-    X_test = np.concatenate((np.atleast_2d(np.ones(X_test.shape[0])).T, X_test), axis=1)
-
     return X_train, Y_train, X_validation, Y_validation, X_test, Y_test
  
 def predict(model, X): 
@@ -99,12 +76,14 @@ def build_train_model(ann_model):
 
     # Initialize the weights (random values) and bias (=0) 
 
-    W1 = np.random.randn(ann_model.n_input_dim, ann_model.n_hlayer) / np.sqrt(ann_model.n_input_dim + 1) 
+    W1 = np.random.randn(ann_model.n_input_dim, ann_model.n_hlayer) / np.sqrt(ann_model.n_input_dim) 
+    b1 = np.zeros((1, ann_model.n_hlayer)) 
     W2 = np.random.randn(ann_model.n_hlayer, ann_model.n_output_dim) / np.sqrt(ann_model.n_hlayer) 
+    b2 = np.zeros((1, ann_model.n_output_dim)) 
  
     # Define model which will contains Ws and biases
 
-    model = { 'W1': W1, 'W2': W2} 
+    model = { 'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2} 
 
     # Loop over the n_passes... 
     for i in range(0, ann_model.n_passes): 
@@ -117,8 +96,8 @@ def build_train_model(ann_model):
 
         model = back_propagation(ann_model, probs, a2, model)
 
-        if i % 1000 == 0: 
-          print("Score after iteration %i: %f" %(i, score(predict(model, ann_model.X_validation), ann_model.Y_validation))) 
+        if i % 100 == 0: 
+          print("Score after iteration %d: %f" %(i, score(predict(model, ann_model.X_validation), ann_model.Y_validation))) 
 
     return model
 
@@ -126,40 +105,42 @@ def foward_propagation(model, X):
     """
       Foward propagation
     """
-    W1, W2 = model['W1'], model['W2'] 
+    W1, b1, W2, b2 = model['W1'], model['b1'], model['W2'], model['b2'] 
 
     a1 = X.copy()
-    z1 = a1.dot(W1) 
-    a2 = sigmoid(z1, deriv = False) # hidden layer activation function: tanh
-    z2 = a2.dot(W2) 
+    z1 = a1.dot(W1) + b1 
+    a2 = sigmoid(z1, deriv = False) # hidden layer activation function: sigmoid
+    z2 = a2.dot(W2) + b2 
     probs = softmax(z2)             # output layer activation function: softmax
 
     return probs, a2
 
-def back_propagation(ann_model, probs, a2, model):
+def back_propagation(ann_model, a3, a2, model):
     """
-      Back propagation
+      Back Propagation
     """
 
     # Loading model
 
-    W1, W2 = model['W1'], model['W2'] 
+    W1, b1, W2, b2 = model['W1'], model['b1'], model['W2'], model['b2'] 
 
     # Backpropagating..
 
-    error = probs 
-    error[range(ann_model.n_train), ann_model.Y_train] -= 1 
-
-    # Deltas of Hidden and Output Layers
-
-    delta3 = error * softmax(probs, deriv = True)
-    delta2 = np.dot(delta3, W2.T) * sigmoid(a2, deriv = True)
+    # Define delta2
+    delta2 = a3 
+    delta2[range(ann_model.n_train), ann_model.Y_train] -= 1 
+    delta1 = (delta2).dot(W2.T) * sigmoid(a2, deriv = True)
 
     # Weights
 
-    dW2 = a2.T.dot(delta3)
-    dW1 = ann_model.X_train.T.dot(delta2)
-    
+    dW2 = a2.T.dot(delta2)
+    dW1 = ann_model.X_train.T.dot(delta1)
+
+    # Bias
+
+    db2 = (delta2).sum(axis=0)
+    db1 = (delta1).sum(axis=0)
+
     # Add regularization terms (b1 and b2 don't have regularization terms) 
 
     dW2 += ann_model.reg_lambda * W2 
@@ -168,12 +149,13 @@ def back_propagation(ann_model, probs, a2, model):
     # Update parameter (gradient descen)
 
     W1 += -ann_model.epsilon * dW1 
+    b1 += -ann_model.epsilon * db1 
     W2 += -ann_model.epsilon * dW2 
+    b2 += -ann_model.epsilon * db2 
 
     # Update parameters to the model 
 
-    model = { 'W1': W1, 'W2': W2} 
-    #exit()
+    model = { 'W1': W1, 'b1': b1, 'W2': W2, 'b2': b2} 
 
     return model
 
@@ -187,9 +169,9 @@ class ann:
         # ANN parameter
         self.epsilon = 0.001                # Learning rate
         self.reg_lambda = 0.00             # Regularization term
-        self.n_hlayer = 20                 # Hidden layer
+        self.n_hlayer = 10                 # Hidden layer
         self.n_input_dim = np.shape(X_train)[1]
-        self.n_passes = 20000
+        self.n_passes = 10000
         self.n_output_dim = 2             # Output
 
         # Training 
@@ -217,8 +199,6 @@ def score(class_out, Y):
 #######################################################################################
  
 if __name__ == '__main__':
-
-    np.random.seed(12345678)
 
     print('Loading dataset..')
 
