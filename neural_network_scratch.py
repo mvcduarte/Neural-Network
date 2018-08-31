@@ -31,6 +31,16 @@ def softmax(A):
     exp_A = np.exp(A)
     return exp_A / exp_A.sum(axis=1, keepdims=True)
 
+def tanh(A, deriv = False):
+    """
+     tanh activation function
+
+    """
+    if deriv == False:
+        return np.tanh(A)
+    else:
+        return (1.0 - np.power(np.tanh(A), 2))
+
 def load_dataset():
     """
        Loading dataset and define Training and Test samples
@@ -109,7 +119,7 @@ def foward_propagation(model, X):
 
     a1 = X.copy()
     z1 = a1.dot(W1) + b1 
-    a2 = sigmoid(z1, deriv = False) # hidden layer activation function: sigmoid
+    a2 = tanh(z1, deriv = False) # hidden layer activation function: sigmoid
     z2 = a2.dot(W2) + b2 
     probs = softmax(z2)             # output layer activation function: softmax
 
@@ -129,7 +139,7 @@ def back_propagation(ann_model, a3, a2, model):
     # Define delta2
     delta2 = a3 
     delta2[range(ann_model.n_train), ann_model.Y_train] -= 1 
-    delta1 = (delta2).dot(W2.T) * sigmoid(a2, deriv = True)
+    delta1 = (delta2).dot(W2.T) * tanh(a2, deriv = True)
 
     # Weights
 
